@@ -658,7 +658,7 @@ function populateProductSelect() {
     sel.appendChild(opt);
   }
 }
-const NO_PRODUCT_VISIT_TYPES = ["會議/訓練", "休假/請假", "面試/交接", "新人訓練/考核", "其他"];
+const NO_PRODUCT_VISIT_TYPES = ["Joint Call", "會議/訓練", "休假/請假", "面試/交接", "新人訓練/考核", "其他"];
 
 function populateVisitTypeSelect() {
   const sel = $("visitType");
