@@ -40,7 +40,7 @@ for _, row in cust.iterrows():
 reps.sort(key=lambda r: r['code'])
 customers.sort(key=lambda c: (c['repCode'], c['name']))
 
-visit = pd.read_excel('拜訪分類.xlsx')
+visit = pd.read_excel('拜訪分類.xlsx', header=None)
 visit_types = [str(v).strip() for v in visit.iloc[:, 0].dropna().tolist()]
 
 prod = pd.read_excel('產品檔.xlsx')
