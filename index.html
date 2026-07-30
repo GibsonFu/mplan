@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>月拜訪計畫表</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- 設定尚未完成提示 -->
+<div id="configWarning" class="config-warning hidden">
+  <div class="config-warning-box">
+    <h2>尚未設定 Firebase</h2>
+    <p>請先依照 <code>SETUP.md</code> 的步驟建立免費的 Firebase 專案，並把設定值填入 <code>firebase-config.js</code>，再重新整理此頁面。</p>
+  </div>
+</div>
+
+<!-- 登入畫面 -->
+<div id="loginScreen" class="screen">
+  <div class="login-box">
+    <h1>月拜訪計畫表</h1>
+    <p class="sub">請選擇帳號並輸入密碼登入</p>
+    <div id="seedBox" class="seed-box hidden">
+      <p>系統偵測到帳號資料尚未建立，請先初始化系統帳號（僅需執行一次）。</p>
+      <button id="seedBtn" class="btn btn-secondary">初始化系統帳號</button>
+      <p id="seedMsg" class="msg"></p>
+    </div>
+    <form id="loginForm">
+      <label>帳號
+        <select id="loginCode" required></select>
+      </label>
+      <label>密碼
+        <input type="password" id="loginPassword" required autocomplete="current-password" />
+      </label>
+      <p class="hint">業務代表預設密碼為 0000，處長帳號密碼另行提供。登入後可自行修改密碼。</p>
+      <button type="submit" class="btn btn-primary">登入</button>
+      <p id="loginMsg" class="msg"></p>
+    </form>
+  </div>
+</div>
+
+<!-- 主畫面 -->
+<div id="appScreen" class="screen hidden">
+  <header class="app-header">
+    <div class="header-left">
+      <h1>月拜訪計畫表</h1>
+      <span id="whoami" class="whoami"></span>
+    </div>
+    <div class="header-right">
+      <label class="month-select">
+        年份
+        <select id="yearSelect"></select>
+      </label>
+      <label class="month-select">
+        月份
+        <select id="monthSelect"></select>
+      </label>
+      <button id="changePwBtn" class="btn btn-ghost">修改密碼</button>
+      <button id="logoutBtn" class="btn btn-ghost">登出</button>
+    </div>
+  </header>
+
+  <!-- 處長專用列 -->
+  <div id="adminBar" class="admin-bar hidden">
+    <label>檢視代表
+      <select id="repFilter"></select>
+    </label>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="list">拜訪清單</button>
+      <button class="tab-btn" data-tab="report">分析報表</button>
+    </div>
+  </div>
+
+  <main id="listTab" class="tab-panel">
+    <div class="toolbar">
+      <button id="addVisitBtn" class="btn btn-primary">＋ 新增拜訪</button>
+      <button id="exportBtn" class="btn btn-secondary">匯出 CSV</button>
+      <button id="printBtn" class="btn btn-secondary">列印</button>
+      <span id="summaryLine" class="summary-line"></span>
+    </div>
+
+    <div class="table-wrap">
+      <table id="visitTable">
+        <thead>
+          <tr id="visitTableHead"></tr>
+        </thead>
+        <tbody id="visitTableBody"></tbody>
+      </table>
+      <p id="emptyMsg" class="empty-msg hidden">本月尚無拜訪紀錄</p>
+    </div>
+  </main>
+
+  <main id="reportTab" class="tab-panel hidden">
+    <div id="reportContent"></div>
+  </main>
+</div>
+
+<!-- 新增拜訪 Modal -->
+<div id="visitModal" class="modal hidden">
+  <div class="modal-box">
+    <h2>新增拜訪</h2>
+    <form id="visitForm">
+      <div id="adminRepPickWrap" class="hidden">
+        <label>所屬代表
+          <select id="visitRepPick"></select>
+        </label>
+      </div>
+
+      <label>醫院 / 客戶
+        <select id="visitHospital" required></select>
+      </label>
+
+      <label>醫師 / 聯絡人
+        <select id="visitDoctor" required></select>
+      </label>
+
+      <fieldset>
+        <legend>拜訪日期（可複選）</legend>
+        <div class="modal-month-select">
+          <select id="visitYear"></select>
+          <select id="visitMonth"></select>
+        </div>
+        <div id="dayCheckboxes" class="day-grid"></div>
+      </fieldset>
+
+      <label>產品分類
+        <select id="visitCategory" required></select>
+      </label>
+
+      <label>產品
+        <select id="visitProduct" required></select>
+      </label>
+
+      <label>拜訪分類
+        <select id="visitType" required></select>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="cancelVisitBtn" class="btn btn-ghost">取消</button>
+        <button type="submit" class="btn btn-primary">儲存</button>
+      </div>
+      <p id="visitFormMsg" class="msg"></p>
+    </form>
+  </div>
+</div>
+
+<!-- 修改密碼 Modal -->
+<div id="pwModal" class="modal hidden">
+  <div class="modal-box">
+    <h2>修改密碼</h2>
+    <form id="pwForm">
+      <label>目前密碼
+        <input type="password" id="oldPw" required autocomplete="current-password" />
+      </label>
+      <label>新密碼
+        <input type="password" id="newPw1" required autocomplete="new-password" minlength="4" />
+      </label>
+      <label>再輸入一次新密碼
+        <input type="password" id="newPw2" required autocomplete="new-password" minlength="4" />
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="cancelPwBtn" class="btn btn-ghost">取消</button>
+        <button type="submit" class="btn btn-primary">確認修改</button>
+      </div>
+      <p id="pwFormMsg" class="msg"></p>
+    </form>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
