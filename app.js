@@ -34,7 +34,11 @@ let unsubscribeVisits = null;
 let currentVisits = [];
 const now = new Date();
 let currentYear = now.getFullYear();
-let currentMonth = now.getMonth() + 1;
+let currentMonth = now.getMonth() + 2; // 預設帶下個月
+if (currentMonth > 12) {
+  currentMonth = 1;
+  currentYear += 1;
+}
 
 // ==================================================================
 // 登入畫面初始化
@@ -233,34 +237,212 @@ function renderTable() {
   $("emptyMsg").classList.toggle("hidden", currentVisits.length > 0);
 
   for (const v of currentVisits) {
-    const tr = document.createElement("tr");
-    const cells = [
-      v.date,
-      v.customerName,
-      v.contactName,
-      `${v.contactDept || ""} / ${v.contactTitle || ""}`,
-      v.contactLevel || "",
-      v.productCategory,
-      v.productName,
-      v.visitType,
-    ];
-    if (showRepCol) cells.splice(1, 0, `${v.repCode} ${v.repName}`);
-    for (const c of cells) {
-      const td = document.createElement("td");
-      td.textContent = c;
-      tr.appendChild(td);
-    }
-    const tdDel = document.createElement("td");
-    const delBtn = document.createElement("button");
-    delBtn.className = "row-del";
-    delBtn.textContent = "刪除";
-    delBtn.addEventListener("click", () => deleteVisit(v.id));
-    tdDel.appendChild(delBtn);
-    tr.appendChild(tdDel);
-    body.appendChild(tr);
+    body.appendChild(buildVisitRow(v, showRepCol));
   }
 
   $("summaryLine").textContent = `共 ${currentVisits.length} 筆拜訪紀錄`;
+}
+
+// ---------- 表格內可直接拉選修改的欄位 ----------
+function rowBuildHospitalOptions(sel, repCode) {
+  sel.innerHTML = "";
+  for (const c of customersFor(repCode)) {
+    const opt = document.createElement("option");
+    opt.value = c.code; opt.textContent = c.name;
+    sel.appendChild(opt);
+  }
+  const ebGroup = document.createElement("optgroup");
+  ebGroup.label = "其他";
+  const ebOpt = document.createElement("option");
+  ebOpt.value = "EB"; ebOpt.textContent = "EB";
+  ebGroup.appendChild(ebOpt);
+  sel.appendChild(ebGroup);
+}
+
+function rowBuildDoctorOptions(sel, repCode, custCode) {
+  sel.innerHTML = "";
+  if (custCode === "EB") {
+    for (const s of S_CODES) {
+      const opt = document.createElement("option");
+      opt.value = s; opt.textContent = s;
+      sel.appendChild(opt);
+    }
+    return;
+  }
+  const cust = findCustomer(repCode, custCode);
+  const contacts = cust ? cust.contacts : [];
+  if (contacts.length === 0) {
+    const opt = document.createElement("option");
+    opt.value = ""; opt.textContent = "（無聯絡人資料）";
+    sel.appendChild(opt);
+    return;
+  }
+  for (const c of contacts) {
+    const opt = document.createElement("option");
+    opt.value = c.name;
+    opt.textContent = `${c.name}（${c.dept} / ${c.title}）`;
+    opt.dataset.dept = c.dept;
+    opt.dataset.title = c.title;
+    opt.dataset.level = c.level;
+    sel.appendChild(opt);
+  }
+}
+
+function rowBuildCategoryOptions(sel) {
+  sel.innerHTML = "";
+  for (const c of window.PRODUCT_CATEGORIES) {
+    const opt = document.createElement("option");
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  }
+}
+
+function rowBuildProductOptions(sel, category) {
+  sel.innerHTML = "";
+  for (const p of window.PRODUCTS.filter((p) => p.category === category)) {
+    const opt = document.createElement("option");
+    opt.value = p.name; opt.textContent = p.name;
+    sel.appendChild(opt);
+  }
+}
+
+function rowBuildVisitTypeOptions(sel) {
+  sel.innerHTML = "";
+  for (const t of window.VISIT_TYPES) {
+    const opt = document.createElement("option");
+    opt.value = t; opt.textContent = t;
+    sel.appendChild(opt);
+  }
+}
+
+function buildVisitRow(v, showRepCol) {
+  const tr = document.createElement("tr");
+
+  function addCell(content) {
+    const td = document.createElement("td");
+    if (content instanceof Node) td.appendChild(content);
+    else td.textContent = content;
+    tr.appendChild(td);
+    return td;
+  }
+
+  async function persist(patch) {
+    try {
+      await db.collection("visits").doc(v.id).update(patch);
+    } catch (err) {
+      alert("更新失敗：" + err.message);
+    }
+  }
+
+  if (showRepCol) addCell(`${v.repCode} ${v.repName}`);
+  addCell(v.date);
+
+  const hospitalSel = document.createElement("select");
+  rowBuildHospitalOptions(hospitalSel, v.repCode);
+  hospitalSel.value = v.customerCode;
+  addCell(hospitalSel);
+
+  const doctorSel = document.createElement("select");
+  rowBuildDoctorOptions(doctorSel, v.repCode, hospitalSel.value);
+  doctorSel.value = v.contactName;
+  addCell(doctorSel);
+
+  const deptTitleTd = addCell(`${v.contactDept || ""} / ${v.contactTitle || ""}`);
+  const levelTd = addCell(v.contactLevel || "");
+
+  const categorySel = document.createElement("select");
+  rowBuildCategoryOptions(categorySel);
+  categorySel.value = v.productCategory;
+  addCell(categorySel);
+
+  const productSel = document.createElement("select");
+  rowBuildProductOptions(productSel, categorySel.value);
+  productSel.value = v.productName;
+  addCell(productSel);
+
+  const visitTypeSel = document.createElement("select");
+  rowBuildVisitTypeOptions(visitTypeSel);
+  visitTypeSel.value = v.visitType;
+  addCell(visitTypeSel);
+
+  if (NO_PRODUCT_VISIT_TYPES.includes(visitTypeSel.value)) {
+    categorySel.innerHTML = "";
+    productSel.innerHTML = "";
+    categorySel.disabled = true;
+    productSel.disabled = true;
+  }
+
+  hospitalSel.addEventListener("change", () => {
+    const custCode = hospitalSel.value;
+    rowBuildDoctorOptions(doctorSel, v.repCode, custCode);
+    const opt = doctorSel.options[0];
+    const cust = findCustomer(v.repCode, custCode);
+    const patch = {
+      customerCode: custCode,
+      customerName: custCode === "EB" ? "EB" : cust ? cust.name : "",
+      contactName: opt ? opt.value : "",
+      contactDept: opt ? opt.dataset.dept || "" : "",
+      contactTitle: opt ? opt.dataset.title || "" : "",
+      contactLevel: opt ? opt.dataset.level || "" : "",
+    };
+    deptTitleTd.textContent = `${patch.contactDept} / ${patch.contactTitle}`;
+    levelTd.textContent = patch.contactLevel;
+    persist(patch);
+  });
+
+  doctorSel.addEventListener("change", () => {
+    const opt = doctorSel.options[doctorSel.selectedIndex];
+    const patch = {
+      contactName: opt ? opt.value : "",
+      contactDept: opt ? opt.dataset.dept || "" : "",
+      contactTitle: opt ? opt.dataset.title || "" : "",
+      contactLevel: opt ? opt.dataset.level || "" : "",
+    };
+    deptTitleTd.textContent = `${patch.contactDept} / ${patch.contactTitle}`;
+    levelTd.textContent = patch.contactLevel;
+    persist(patch);
+  });
+
+  categorySel.addEventListener("change", () => {
+    rowBuildProductOptions(productSel, categorySel.value);
+    persist({ productCategory: categorySel.value, productName: productSel.value });
+  });
+
+  productSel.addEventListener("change", () => {
+    persist({ productName: productSel.value });
+  });
+
+  visitTypeSel.addEventListener("change", () => {
+    const noProduct = NO_PRODUCT_VISIT_TYPES.includes(visitTypeSel.value);
+    categorySel.disabled = noProduct;
+    productSel.disabled = noProduct;
+    if (noProduct) {
+      categorySel.innerHTML = "";
+      productSel.innerHTML = "";
+    } else if (categorySel.options.length === 0) {
+      rowBuildCategoryOptions(categorySel);
+      rowBuildProductOptions(productSel, categorySel.value);
+    }
+    const patch = { visitType: visitTypeSel.value };
+    if (noProduct) {
+      patch.productCategory = "";
+      patch.productName = "";
+    } else {
+      patch.productCategory = categorySel.value;
+      patch.productName = productSel.value;
+    }
+    persist(patch);
+  });
+
+  const tdDel = document.createElement("td");
+  const delBtn = document.createElement("button");
+  delBtn.className = "row-del";
+  delBtn.textContent = "刪除";
+  delBtn.addEventListener("click", () => deleteVisit(v.id));
+  tdDel.appendChild(delBtn);
+  tr.appendChild(tdDel);
+
+  return tr;
 }
 
 async function deleteVisit(id) {

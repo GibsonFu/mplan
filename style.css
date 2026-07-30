@@ -117,6 +117,8 @@ th, td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: 
 th { background: #f8fafc; color: var(--muted); font-weight: 600; }
 tbody tr:hover { background: #f8fafc; }
 .empty-msg { padding: 30px; text-align: center; color: var(--muted); }
+table select { width: auto; max-width: 200px; font-size: 0.85rem; padding: 4px 6px; }
+table select:disabled { background: #f1f5f9; color: var(--muted); }
 
 /* modal */
 .modal {
